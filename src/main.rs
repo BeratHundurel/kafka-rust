@@ -17,14 +17,7 @@ fn main() {
         match stream {
             Ok(mut _stream) => {
                 let buffer = [0, 0, 0, 0, 0, 0, 0, 7];
-                match _stream.write(&buffer) {
-                    Ok(_) => {
-                        println!("message sent");
-                    }
-                    Err(e) => {
-                        println!("error: {}", e);
-                    }
-                }
+                _stream.write(&buffer).unwrap();
             }
             Err(e) => {
                 println!("error: {}", e);
