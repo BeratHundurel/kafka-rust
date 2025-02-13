@@ -1,6 +1,14 @@
-use tokio::net::TcpListener;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use bytes::{Buf, BufMut, BytesMut};
+use bytes::{BufMut, BytesMut};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::net::{TcpListener, TcpStream};
+
+const UNSUPPORTED_VERSION_CODE: u16 = 35;
+
+struct Header {
+    api_key: u16,
+    api_version: u16,
+    corelation_id: u32,
+}
 
 #[tokio::main]
 async fn main() -> tokio::io::Result<()> {
@@ -17,24 +25,36 @@ async fn main() -> tokio::io::Result<()> {
     }
 }
 
+async fn parse_header(stream: &mut TcpStream) -> Result<Header, std::io::Error> {
+    let mut reader = BufReader::new(stream);
+    let _header_len = reader.read_u32().await? as usize;
+    let api_key = reader.read_u16().await?;
+    let api_version = reader.read_u16().await?;
+    let corelation_id = reader.read_u32().await?;
+    Ok(Header {
+        api_key,
+        api_version,
+        corelation_id,
+    })
+}
+
 async fn handle_client(socket: &mut tokio::net::TcpStream) -> tokio::io::Result<()> {
-    let mut buf = BytesMut::with_capacity(8);
+    let header = parse_header(socket).await?;
 
-    buf.resize(4, 0);
-    socket.read_exact(&mut buf).await?;
-    let len = i32::from_be_bytes(buf[..4].try_into().unwrap()) as usize;
+    let mut response = BytesMut::with_capacity(10);
 
-    buf.resize(len, 0);
-    socket.read_exact(&mut buf).await?;
+    response.put_u32(0);
+    response.put_u32(header.corelation_id);
 
-    let mut request = &buf[..];
-    let _request_api_key = request.get_i16();
-    let _request_api_version = request.get_i16();
-    let correlation_id = request.get_i32();
+    let error_code = if header.api_version as i16 >= 0 {
+        0
+    } else {
+        UNSUPPORTED_VERSION_CODE
+    };
 
-    let mut response = BytesMut::with_capacity(8);
-    response.put_i32(0); // Error code = 0 (success)
-    response.put_i32(correlation_id); // Echo correlation ID
+    response.put_u16(error_code);
+
+    println!("Sending response: {:?}", response);
 
     socket.write_all(&response).await?;
 
