@@ -1,4 +1,3 @@
-#![allow(unused_imports)]
 use std::{io::Write, net::TcpListener, str};
 
 struct Response {
@@ -17,7 +16,14 @@ fn main() {
         match stream {
             Ok(mut _stream) => {
                 let buffer = [0, 0, 0, 0, 0, 0, 0, 7];
-                _stream.write(&buffer).unwrap();
+                match _stream.write(&buffer) {
+                    Ok(value) => {
+                        println!("sent {} bytes", value);
+                    }
+                    Err(e) => {
+                        println!("failed to send response: {}", e);
+                    }
+                };
             }
             Err(e) => {
                 println!("error: {}", e);
